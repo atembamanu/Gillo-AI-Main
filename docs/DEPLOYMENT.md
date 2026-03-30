@@ -117,6 +117,27 @@ Memory limits in `docker-compose.prod.yml` are tuned for ~8 GB RAM (Ollama ~4 GB
 - API: `GET https://api.gilloai.com/health` → `{ "status": "ok" }`
 - Frontend: static site on `https://gilloai.com`
 
+### Ollama / “Generate with AI” returns 502
+
+The API calls Ollama at `OLLAMA_URL` (default `http://ollama:11434`). If Ollama is down, the model is not pulled, or `OLLAMA_MODEL` does not exist, the route returns **502**.
+
+1. Ensure the **ollama** service is running: `docker compose ps` includes `ollama`.
+2. Pull the model (match `OLLAMA_MODEL` in `.env`):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env exec ollama ollama pull llama3.2:3b
+   ```
+
+3. From the API container, verify Ollama responds:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env exec -T api-server wget -qO- http://ollama:11434/api/tags
+   ```
+
+### Redis / BullMQ: eviction policy
+
+If logs say eviction should be `noeviction`, production Compose sets Redis to **`noeviction`** for BullMQ. Restart **redis** (and **worker**) after changing Redis config.
+
 ## 8. Development vs production
 
 | | Development (`docker-compose.yml`) | Production (`docker-compose.prod.yml`) |

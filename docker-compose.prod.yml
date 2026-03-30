@@ -107,12 +107,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # BullMQ expects noeviction (do not evict queue keys). Raise host RAM / Redis mem if needed.
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     volumes:
       - redisdata:/data
     networks:
       - app_net
-    mem_limit: 300m
+    mem_limit: 640m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
