@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -59,7 +58,6 @@ model Note {
 
   bucket         Bucket    @relation(fields: [bucketId], references: [id], onDelete: Cascade)
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  aiInteractions AiInteraction[]
 
   @@index([userId, bucketId, createdAt], map: "idx_notes_user_bucket_created_at")
   @@index([userId, bucketId, archived, createdAt], map: "idx_notes_user_bucket_archived_created_at")

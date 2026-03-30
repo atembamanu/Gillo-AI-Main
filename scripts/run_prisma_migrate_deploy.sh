@@ -12,5 +12,5 @@ fi
 cd /app
 
 # Use npx to ensure the local prisma CLI is used.
-npx prisma migrate deploy --schema /app/prisma/schema.prisma
+npx prisma migrate deploy
 

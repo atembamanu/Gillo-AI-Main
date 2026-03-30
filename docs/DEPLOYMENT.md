@@ -94,7 +94,7 @@ Load `POSTGRES_USER` / `POSTGRES_DB` from `.env` if needed (`set -a && source .e
 
 ### Prisma migrations (optional, for future schema changes)
 
-Prisma is now set up in `backend/prisma/schema.prisma`, and the `api-server` container includes the Prisma CLI.
+Prisma ORM 7 uses `backend/prisma.config.ts` for the database URL (and migration paths); `backend/prisma/schema.prisma` has no `url` field. The `api-server` container includes the Prisma CLI and this config at `/app/prisma.config.ts`.
 
 #### Safe `DATABASE_URL`
 
@@ -107,14 +107,19 @@ It builds `DATABASE_URL` from `POSTGRES_HOST` / `POSTGRES_USER` / `POSTGRES_PASS
 
 #### First-time setup (recommended: empty database / fresh volume)
 
-From the running `api-server` container:
+In the running `api-server` container, run commands with working directory `/app` so the CLI loads `prisma.config.ts`. Ensure `DATABASE_URL` is set (Compose often injects it; otherwise build it like `run_prisma_migrate_deploy.sh` does).
 
 ```bash
-docker exec -it <api-server-container> \
-  npx prisma migrate dev --name init --schema /app/prisma/schema.prisma
+docker exec -it <api-server-container> sh -c 'cd /app && npx prisma migrate dev --name init'
 ```
 
-Then apply:
+In Prisma 7, `migrate dev` does not run `prisma generate` for you; after migrations, run:
+
+```bash
+docker exec -it <api-server-container> sh -c 'cd /app && npx prisma generate'
+```
+
+For production-style applies, use:
 
 ```bash
 docker exec -it <api-server-container> \

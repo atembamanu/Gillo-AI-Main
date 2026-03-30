@@ -16,10 +16,11 @@ ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/notes
 COPY backend/package.json ./
 RUN npm install --omit=dev || true
 
+COPY backend/prisma.config.ts ./
 COPY backend/prisma ./prisma
 
 # Generate Prisma client so `prisma migrate` works immediately.
-RUN npx prisma generate --schema prisma/schema.prisma || true
+RUN npx prisma generate || true
 
 COPY --from=builder /app/dist ./dist
 
