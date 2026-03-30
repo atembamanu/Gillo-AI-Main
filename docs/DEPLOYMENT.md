@@ -2,14 +2,6 @@
 
 This guide targets **https://gilloai.com** (SPA) and **https://api.gilloai.com** (API), with a single root **`.env`** for secrets and Compose-friendly defaults for an **8 GB RAM / 100 GB SSD** VPS.
 
-## First-time checklist (order matters)
-
-1. Configure **`.env`** (see §1).
-2. **Start the stack** (see §2) so PostgreSQL is running.
-3. **Run database migrations** (see §4). If you skip this step, the API will return errors like `relation "users" does not exist` (`42P01`).
-4. **Pull the Ollama model** (see §5).
-5. Map domains in Dokploy (see §3).
-
 ## Architecture
 
 | Domain | Service | Port (internal) |
@@ -67,18 +59,9 @@ Rebuild the **frontend** whenever `VITE_API_BASE_URL` changes (Vite embeds it at
 4. Enable HTTPS for both routes.
 5. Do **not** expose PostgreSQL, Redis, MinIO, Ollama, or Whisper directly to the internet.
 
-## 4. Database migrations (required)
+## 4. Database migrations
 
-The API expects tables such as **`users`**, **`buckets`**, and **`notes`**. A fresh Postgres volume is empty until you apply migrations.
-
-**After** `docker compose ... up -d` (so `postgres` is healthy), run **once** from the repo root:
-
-```bash
-chmod +x infra/scripts/run-migrations.sh
-./infra/scripts/run-migrations.sh
-```
-
-Or manually (same order):
+Run SQL migrations once per environment (order matters):
 
 ```bash
 cat infra/migrations/001_init.sql \
@@ -87,104 +70,10 @@ cat infra/migrations/001_init.sql \
     infra/migrations/004_user_display_name.sql \
     infra/migrations/005_add_audio_columns.sql \
     infra/migrations/006_add_audio_metadata.sql \
-  | docker compose -f docker-compose.prod.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-notes}"
+  | docker compose -f docker-compose.prod.yml exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-notes}"
 ```
 
-Load `POSTGRES_USER` / `POSTGRES_DB` from `.env` if needed (`set -a && source .env && set +a`).
-
-### Prisma migrations (optional, for future schema changes)
-
-Prisma ORM 7 uses `backend/prisma.config.ts` for the database URL (and migration paths); `backend/prisma/schema.prisma` has no `url` field. The `api-server` container includes the Prisma CLI and this config at `/app/prisma.config.ts`.
-
-#### Safe `DATABASE_URL`
-
-If your `POSTGRES_PASSWORD` contains special characters (`!`, `^`, `@`, etc.), use the provided helper which percent-encodes the password.
-The wrapper script is:
-
-- `/app/scripts/run_prisma_migrate_deploy.sh`
-
-It builds `DATABASE_URL` from `POSTGRES_HOST` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` when needed.
-
-#### First-time setup (recommended: empty database / fresh volume)
-
-In the running `api-server` container, run commands with working directory `/app` so the CLI loads `prisma.config.ts`. Ensure `DATABASE_URL` is set (Compose often injects it; otherwise build it like `run_prisma_migrate_deploy.sh` does).
-
-```bash
-docker exec -it <api-server-container> sh -c 'cd /app && npx prisma migrate dev --name init'
-```
-
-In Prisma 7, `migrate dev` does not run `prisma generate` for you; after migrations, run:
-
-```bash
-docker exec -it <api-server-container> sh -c 'cd /app && npx prisma generate'
-```
-
-For production-style applies, use:
-
-```bash
-docker exec -it <api-server-container> \
-  sh /app/scripts/run_prisma_migrate_deploy.sh
-```
-
-#### Existing DB (already has tables via SQL migrations)
-
-Prisma can’t safely “adopt” the existing SQL migration history without a baseline step (it relies on the `_prisma_migrations` table).
-If you want Prisma to fully take over, tell me your preference:
-
-1. Keep using the existing SQL migrations for now, and only use Prisma for *new* schema changes you add later, or
-2. Convert the current setup so Prisma owns migrations from this point onward (requires a baseline/migration-history adoption step).
-
-**`POSTGRES_USER` vs existing data:** The Postgres image creates the superuser role only on **first** start (empty volume). If you later change `POSTGRES_USER` in `.env`, the old role (often `postgres`) may still be the only one — then `psql -U ps_user` fails with `role "ps_user" does not exist`. **`infra/scripts/run-migrations.sh`** probes the configured user and falls back to **`postgres`**. To actually run the DB as `ps_user`, start from an empty volume or run `CREATE ROLE` / align `.env` with how the volume was first created.
-
-### PostgreSQL passwords with special characters (`!`, `^`, `@`, …)
-
-The **API** (`backend`), **worker**, and **seed script** all use the same rules:
-
-- Prefer **`POSTGRES_PASSWORD`** plus **`POSTGRES_HOST`**, **`POSTGRES_USER`**, **`POSTGRES_DB`**, **`POSTGRES_PORT`** in `.env` (see `docker-compose.prod.yml`).
-- Or use **`POSTGRES_URL`** only; the app parses it manually so libpq/pg is not given a broken URI.
-
-### Error: `could not translate host name "…@postgres"` (seed script)
-
-The password in **`POSTGRES_URL`** was being split wrong (special characters like `!`, `^`, `@` in URLs). The seed script now parses the URL safely, or **set `POSTGRES_PASSWORD`** (and optional `POSTGRES_HOST`, `POSTGRES_DB`, …) in `.env` so the container does not rely on a URI string for the password.
-
-### `couldn't find env file: /root/.env`
-
-Run Compose from the directory that contains your `.env`, or pass the full path:
-
-`docker compose -f /path/to/project/docker-compose.prod.yml --env-file /path/to/project/.env up -d`
-
-### Error: `relation "users" does not exist` (42P01)
-
-Migrations were not applied (or were applied to a different database than **`POSTGRES_URL`** uses). Re-run §4 against the same Postgres instance and database name as in **`POSTGRES_URL`**.
-
-### Optional: seed admin user (Python)
-
-The **backend** image includes `/app/scripts/seed_initial_data.py` (requires migrations first). It uses the same **`POSTGRES_URL`** as the API.
-
-Set in `.env` (or export when exec’ing):
-
-| Variable | Purpose |
-|----------|---------|
-| `SEED_ADMIN_EMAIL` | Email for the admin user (optional; if unset, script only checks DB and exits) |
-| `SEED_ADMIN_PASSWORD` | Plain password; stored with bcrypt (same family as the app) |
-| `SEED_ADMIN_DISPLAY_NAME` | Optional display name |
-| `SEED_BUCKETS` | Comma-separated bucket names (default: `General,Work`) |
-
-Examples:
-
-```bash
-# Dry run (no DB writes)
-docker exec -it <backend-container> python /app/scripts/seed_initial_data.py --dry-run
-
-# Seed using env from the running container (set SEED_* in Dokploy / compose first)
-docker exec -it <backend-container> python /app/scripts/seed_initial_data.py
-
-# One-off (replace values)
-docker exec -it -e SEED_ADMIN_EMAIL=admin@example.com -e SEED_ADMIN_PASSWORD='YourStrongPass' \
-  <backend-container> python /app/scripts/seed_initial_data.py
-```
-
-Compose service name here is **`api-server`**; on Dokploy the container name may look like `project-backend-1` — use `docker ps` to find the backend container.
+Adjust `POSTGRES_USER` / `POSTGRES_DB` if they differ from `.env`.
 
 ## 5. Ollama models (8 GB RAM)
 

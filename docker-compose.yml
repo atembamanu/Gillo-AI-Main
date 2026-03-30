@@ -21,8 +21,7 @@ services:
 
   api-server:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
     environment:
       - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/notes
       - REDIS_URL=redis://redis:6379

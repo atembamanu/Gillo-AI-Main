@@ -1,3 +1,0 @@
-# Used only by scripts/seed_initial_data.py (installed in backend image for ops)
-psycopg2-binary>=2.9.9
-bcrypt>=4.1.0
