@@ -143,7 +143,7 @@ services:
     networks:
       - app_net
     mem_limit: 4g
-    cpus: 3
+    cpus: 2
 
   whisper:
     image: onerahmet/openai-whisper-asr-webservice:latest
