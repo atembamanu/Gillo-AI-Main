@@ -42,7 +42,7 @@ REQUESTED_USER="${POSTGRES_USER:-postgres}"
 
 # Pick a DB role that can connect (volume may have been initialized with another user)
 PSQL_USER="$REQUESTED_USER"
-if ! docker compose -f "$COMPOSE_FILE" exec -T gillo-ai-main-fcpjel-postgres-1 \
+if ! docker compose -f "$COMPOSE_FILE" exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U "$PSQL_USER" -d "$POSTGRES_DB" -c "SELECT 1" >/dev/null 2>&1; then
   if [[ "$PSQL_USER" != "postgres" ]]; then
     echo "Note: role \"$PSQL_USER\" does not exist or cannot connect (common if the DB volume was created with POSTGRES_USER=postgres). Retrying as postgres..." >&2
