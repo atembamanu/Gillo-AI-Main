@@ -1,0 +1,22 @@
+# Secrets and local overrides — never commit
+.env
+
+# Dependencies & build output
+node_modules/
+**/dist/
+**/build/
+*.tsbuildinfo
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Optional local Compose overrides (not committed)
+docker-compose.override.yml

@@ -1,0 +1,166 @@
+# Production stack for Hostinger VPS + Dokploy (split domains).
+# Copy .env.example → .env, set secrets, then: docker compose -f docker-compose.prod.yml up -d --build
+#
+# Map in Dokploy / Traefik:
+#   https://gilloai.com      → service: frontend (port 80)
+#   https://api.gilloai.com  → service: api-server (port 3000)
+#
+# Do not publish postgres, redis, minio, ollama, whisper to the public internet.
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.gilloai.com}
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - app_net
+    mem_limit: 128m
+
+  api-server:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      POSTGRES_URL: ${POSTGRES_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_SECRET: ${JWT_SECRET}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-audio-notes}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+    expose:
+      - "3000"
+    networks:
+      - app_net
+    mem_limit: 512m
+
+  worker:
+    build:
+      context: ./worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      POSTGRES_URL: ${POSTGRES_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
+      API_BASE_URL: ${API_BASE_URL:-http://api-server:3000}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-audio-notes}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+      ollama:
+        condition: service_started
+      whisper:
+        condition: service_started
+    networks:
+      - app_net
+    mem_limit: 1536m
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-notes}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app_net
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-notes}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    networks:
+      - app_net
+    mem_limit: 300m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - app_net
+    mem_limit: 512m
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app_net
+    mem_limit: 4g
+    cpus: 3
+
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    restart: unless-stopped
+    environment:
+      ASR_MODEL: ${ASR_MODEL:-base}
+      ASR_ENGINE: openai_whisper
+    networks:
+      - app_net
+    mem_limit: 1536m
+
+volumes:
+  pgdata:
+  redisdata:
+  ollama_data:
+  minio_data:
+
+networks:
+  app_net:
+    driver: bridge
