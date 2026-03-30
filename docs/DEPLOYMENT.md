@@ -2,6 +2,14 @@
 
 This guide targets **https://gilloai.com** (SPA) and **https://api.gilloai.com** (API), with a single root **`.env`** for secrets and Compose-friendly defaults for an **8 GB RAM / 100 GB SSD** VPS.
 
+## First-time checklist (order matters)
+
+1. Configure **`.env`** (see §1).
+2. **Start the stack** (see §2) so PostgreSQL is running.
+3. **Run database migrations** (see §4). If you skip this step, the API will return errors like `relation "users" does not exist` (`42P01`).
+4. **Pull the Ollama model** (see §5).
+5. Map domains in Dokploy (see §3).
+
 ## Architecture
 
 | Domain | Service | Port (internal) |
@@ -59,9 +67,18 @@ Rebuild the **frontend** whenever `VITE_API_BASE_URL` changes (Vite embeds it at
 4. Enable HTTPS for both routes.
 5. Do **not** expose PostgreSQL, Redis, MinIO, Ollama, or Whisper directly to the internet.
 
-## 4. Database migrations
+## 4. Database migrations (required)
 
-Run SQL migrations once per environment (order matters):
+The API expects tables such as **`users`**, **`buckets`**, and **`notes`**. A fresh Postgres volume is empty until you apply migrations.
+
+**After** `docker compose ... up -d` (so `postgres` is healthy), run **once** from the repo root:
+
+```bash
+chmod +x infra/scripts/run-migrations.sh
+./infra/scripts/run-migrations.sh
+```
+
+Or manually (same order):
 
 ```bash
 cat infra/migrations/001_init.sql \
@@ -70,10 +87,14 @@ cat infra/migrations/001_init.sql \
     infra/migrations/004_user_display_name.sql \
     infra/migrations/005_add_audio_columns.sql \
     infra/migrations/006_add_audio_metadata.sql \
-  | docker compose -f docker-compose.prod.yml exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-notes}"
+  | docker compose -f docker-compose.prod.yml exec -T postgres psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-notes}"
 ```
 
-Adjust `POSTGRES_USER` / `POSTGRES_DB` if they differ from `.env`.
+Load `POSTGRES_USER` / `POSTGRES_DB` from `.env` if needed (`set -a && source .env && set +a`).
+
+### Error: `relation "users" does not exist` (42P01)
+
+Migrations were not applied (or were applied to a different database than **`POSTGRES_URL`** uses). Re-run §4 against the same Postgres instance and database name as in **`POSTGRES_URL`**.
 
 ## 5. Ollama models (8 GB RAM)
 
