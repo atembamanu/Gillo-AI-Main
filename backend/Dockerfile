@@ -11,9 +11,15 @@ RUN npm run build || true
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/notes
 
 COPY backend/package.json ./
 RUN npm install --omit=dev || true
+
+COPY backend/prisma ./prisma
+
+# Generate Prisma client so `prisma migrate` works immediately.
+RUN npx prisma generate --schema prisma/schema.prisma || true
 
 COPY --from=builder /app/dist ./dist
 

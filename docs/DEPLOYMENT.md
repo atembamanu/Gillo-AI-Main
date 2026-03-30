@@ -92,6 +92,45 @@ cat infra/migrations/001_init.sql \
 
 Load `POSTGRES_USER` / `POSTGRES_DB` from `.env` if needed (`set -a && source .env && set +a`).
 
+### Prisma migrations (optional, for future schema changes)
+
+Prisma is now set up in `backend/prisma/schema.prisma`, and the `api-server` container includes the Prisma CLI.
+
+#### Safe `DATABASE_URL`
+
+If your `POSTGRES_PASSWORD` contains special characters (`!`, `^`, `@`, etc.), use the provided helper which percent-encodes the password.
+The wrapper script is:
+
+- `/app/scripts/run_prisma_migrate_deploy.sh`
+
+It builds `DATABASE_URL` from `POSTGRES_HOST` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` when needed.
+
+#### First-time setup (recommended: empty database / fresh volume)
+
+From the running `api-server` container:
+
+```bash
+docker exec -it <api-server-container> \
+  npx prisma migrate dev --name init --schema /app/prisma/schema.prisma
+```
+
+Then apply:
+
+```bash
+docker exec -it <api-server-container> \
+  sh /app/scripts/run_prisma_migrate_deploy.sh
+```
+
+#### Existing DB (already has tables via SQL migrations)
+
+Prisma can’t safely “adopt” the existing SQL migration history without a baseline step (it relies on the `_prisma_migrations` table).
+If you want Prisma to fully take over, tell me your preference:
+
+1. Keep using the existing SQL migrations for now, and only use Prisma for *new* schema changes you add later, or
+2. Convert the current setup so Prisma owns migrations from this point onward (requires a baseline/migration-history adoption step).
+
+**`POSTGRES_USER` vs existing data:** The Postgres image creates the superuser role only on **first** start (empty volume). If you later change `POSTGRES_USER` in `.env`, the old role (often `postgres`) may still be the only one — then `psql -U ps_user` fails with `role "ps_user" does not exist`. **`infra/scripts/run-migrations.sh`** probes the configured user and falls back to **`postgres`**. To actually run the DB as `ps_user`, start from an empty volume or run `CREATE ROLE` / align `.env` with how the volume was first created.
+
 ### PostgreSQL passwords with special characters (`!`, `^`, `@`, …)
 
 The **API** (`backend`), **worker**, and **seed script** all use the same rules:
