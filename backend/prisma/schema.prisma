@@ -1,0 +1,78 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  buckets        Bucket[]
+  notes          Note[]
+  aiInteractions AiInteraction[]
+
+  @@map("users")
+}
+
+model Bucket {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  fields    Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes          Note[]
+  aiInteractions AiInteraction[]
+
+  @@index([userId], map: "idx_buckets_user_id")
+  @@map("buckets")
+}
+
+model Note {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  bucketId        String    @map("bucket_id") @db.Uuid
+  originalText    String    @map("original_text")
+  structuredJson  Json?     @map("structured_json")
+  archived        Boolean   @default(false)
+  category        String?
+  audioUrl        String?   @map("audio_url")
+  archiveUrl      String?   @map("archive_url")
+  durationSeconds Float?    @map("duration_seconds")
+  waveformJson    Json?     @map("waveform_json")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bucket Bucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bucketId, createdAt(sort: Desc)], map: "idx_notes_user_bucket_created_at")
+  @@index([userId, bucketId, archived, createdAt(sort: Desc)], map: "idx_notes_user_bucket_archived_created_at")
+  @@map("notes")
+}
+
+model AiInteraction {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  bucketId        String   @map("bucket_id") @db.Uuid
+  inputText       String   @map("input_text")
+  llmOutput       Json?    @map("llm_output")
+  correctedOutput Json?    @map("corrected_output")
+  correctedByUser Boolean  @default(false) @map("corrected_by_user")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bucket Bucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bucketId, createdAt(sort: Desc)], map: "idx_ai_interactions_user_bucket_created_at")
+  @@map("ai_interactions")
+}

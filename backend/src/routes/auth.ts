@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { query } from '../db';
+import { prisma } from '../prisma';
 
 const registerBodySchema = z.object({
   email: z.string().email(),
@@ -23,26 +23,30 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
     const { email, password } = parse.data;
 
-    const existing = await query<{ id: string }>(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-    if (existing[0]) {
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true }
+    });
+    if (existing) {
       return reply.status(400).send({ error: 'Email already registered' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const users = await query<{ id: string; email: string; display_name: string | null }>(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, display_name',
-      [email, passwordHash]
-    );
-    const user = users[0];
+    const user = await prisma.user.create({
+      data: { email, passwordHash },
+      select: { id: true, email: true, displayName: true }
+    });
 
     // Create a default bucket so the user can start immediately.
-    await query('INSERT INTO buckets (user_id, name) VALUES ($1, $2)', [user.id, 'General']);
+    await prisma.bucket.create({
+      data: {
+        userId: user.id,
+        name: 'General'
+      }
+    });
 
     const token = fastify.jwt.sign({ sub: user.id });
-    return reply.send({ token, user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
+    return reply.send({ token, user: { id: user.id, email: user.email, display_name: user.displayName ?? null } });
   });
 
   fastify.post('/login', async (request, reply) => {
@@ -53,16 +57,15 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
     const { email, password } = parse.data;
 
-    const users = await query<{ id: string; email: string; password_hash: string; display_name: string | null }>(
-      'SELECT id, email, password_hash, display_name FROM users WHERE email = $1',
-      [email]
-    );
-    const user = users[0];
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, passwordHash: true, displayName: true }
+    });
     if (!user) {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
-    const match = await bcrypt.compare(password, user.password_hash);
+    const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
@@ -70,7 +73,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
     const token = fastify.jwt.sign({ sub: user.id });
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, display_name: user.display_name ?? null }
+      user: { id: user.id, email: user.email, display_name: user.displayName ?? null }
     });
   });
 
@@ -85,16 +88,15 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: 'Unauthorized' });
       }
 
-      const users = await query<{ id: string; email: string; display_name: string | null }>(
-        'SELECT id, email, display_name FROM users WHERE id = $1',
-        [userId]
-      );
-      const user = users[0];
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, displayName: true }
+      });
       if (!user) {
         return reply.status(404).send({ error: 'User not found' });
       }
 
-      return reply.send({ user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
+      return reply.send({ user: { id: user.id, email: user.email, display_name: user.displayName ?? null } });
     }
   );
 
@@ -116,22 +118,21 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
       const { display_name } = parse.data;
       if (display_name !== undefined) {
-        await query(
-          'UPDATE users SET display_name = $1 WHERE id = $2',
-          [display_name, userId]
-        );
+        await prisma.user.update({
+          where: { id: userId },
+          data: { displayName: display_name }
+        });
       }
 
-      const users = await query<{ id: string; email: string; display_name: string | null }>(
-        'SELECT id, email, display_name FROM users WHERE id = $1',
-        [userId]
-      );
-      const user = users[0];
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, displayName: true }
+      });
       if (!user) {
         return reply.status(404).send({ error: 'User not found' });
       }
 
-      return reply.send({ user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
+      return reply.send({ user: { id: user.id, email: user.email, display_name: user.displayName ?? null } });
     }
   );
 }

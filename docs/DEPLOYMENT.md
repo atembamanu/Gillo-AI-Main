@@ -59,21 +59,34 @@ Rebuild the **frontend** whenever `VITE_API_BASE_URL` changes (Vite embeds it at
 4. Enable HTTPS for both routes.
 5. Do **not** expose PostgreSQL, Redis, MinIO, Ollama, or Whisper directly to the internet.
 
-## 4. Database migrations
+## 4. Database migrations (Prisma baseline)
 
-Run SQL migrations once per environment (order matters):
+The backend startup runs:
 
 ```bash
-cat infra/migrations/001_init.sql \
-    infra/migrations/002_bucket_fields.sql \
-    infra/migrations/003_add_note_archived.sql \
-    infra/migrations/004_user_display_name.sql \
-    infra/migrations/005_add_audio_columns.sql \
-    infra/migrations/006_add_audio_metadata.sql \
-  | docker compose -f docker-compose.prod.yml exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-notes}"
+prisma migrate deploy && node dist/index.js
 ```
 
-Adjust `POSTGRES_USER` / `POSTGRES_DB` if they differ from `.env`.
+So Prisma migrations are applied automatically on container start.
+
+### Existing production DB (already has tables)
+
+For an existing DB created with legacy SQL files, run this **once** before first Prisma-based startup:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env \
+  exec -T api-server npx prisma migrate resolve --applied 20260330141000_baseline
+```
+
+This marks the baseline as already applied without changing data.
+
+### New environment (fresh DB)
+
+No manual action needed: `prisma migrate deploy` will apply baseline automatically.
+
+### Optional legacy path
+
+Legacy SQL files in `infra/migrations/*.sql` are kept for reference only. Prisma migrations under `backend/prisma/migrations` are now the source of truth.
 
 ## 5. Ollama models (8 GB RAM)
 
