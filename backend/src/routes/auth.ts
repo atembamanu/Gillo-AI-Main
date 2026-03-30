@@ -39,10 +39,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
     const user = users[0];
 
     // Create a default bucket so the user can start immediately.
-    await query(
-      'INSERT INTO buckets (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [user.id, 'General']
-    );
+    await query('INSERT INTO buckets (user_id, name) VALUES ($1, $2)', [user.id, 'General']);
 
     const token = fastify.jwt.sign({ sub: user.id });
     return reply.send({ token, user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
