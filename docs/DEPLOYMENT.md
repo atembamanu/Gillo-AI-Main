@@ -96,6 +96,35 @@ Load `POSTGRES_USER` / `POSTGRES_DB` from `.env` if needed (`set -a && source .e
 
 Migrations were not applied (or were applied to a different database than **`POSTGRES_URL`** uses). Re-run §4 against the same Postgres instance and database name as in **`POSTGRES_URL`**.
 
+### Optional: seed admin user (Python)
+
+The **backend** image includes `/app/scripts/seed_initial_data.py` (requires migrations first). It uses the same **`POSTGRES_URL`** as the API.
+
+Set in `.env` (or export when exec’ing):
+
+| Variable | Purpose |
+|----------|---------|
+| `SEED_ADMIN_EMAIL` | Email for the admin user (optional; if unset, script only checks DB and exits) |
+| `SEED_ADMIN_PASSWORD` | Plain password; stored with bcrypt (same family as the app) |
+| `SEED_ADMIN_DISPLAY_NAME` | Optional display name |
+| `SEED_BUCKETS` | Comma-separated bucket names (default: `General,Work`) |
+
+Examples:
+
+```bash
+# Dry run (no DB writes)
+docker exec -it <backend-container> python /app/scripts/seed_initial_data.py --dry-run
+
+# Seed using env from the running container (set SEED_* in Dokploy / compose first)
+docker exec -it <backend-container> python /app/scripts/seed_initial_data.py
+
+# One-off (replace values)
+docker exec -it -e SEED_ADMIN_EMAIL=admin@example.com -e SEED_ADMIN_PASSWORD='YourStrongPass' \
+  <backend-container> python /app/scripts/seed_initial_data.py
+```
+
+Compose service name here is **`api-server`**; on Dokploy the container name may look like `project-backend-1` — use `docker ps` to find the backend container.
+
 ## 5. Ollama models (8 GB RAM)
 
 After Ollama is up:
