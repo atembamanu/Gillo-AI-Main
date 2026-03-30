@@ -9,9 +9,6 @@ function parseCorsOrigins(): string[] {
 
 export const config = {
   port: Number(process.env.PORT) || 3000,
-  postgresUrl:
-    process.env.POSTGRES_URL ||
-    'postgres://postgres:postgres@postgres:5432/notes',
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379',
   jwtSecret: process.env.JWT_SECRET || 'change-me-in-prod',
   ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434',

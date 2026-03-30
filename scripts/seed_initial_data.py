@@ -2,9 +2,10 @@
 """
 Idempotent database seeding for Gillo (Postgres).
 
-Environment (same as the Node API):
-  POSTGRES_URL   — required, e.g. postgres://user:pass@postgres:5432/notes
-  Or: POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+Environment (same DB as the Node API):
+  1) POSTGRES_PASSWORD + optional POSTGRES_HOST, POSTGRES_USER, POSTGRES_DB, POSTGRES_PORT
+     (recommended when the password contains !, ^, @, #, etc.)
+  2) Or POSTGRES_URL / DATABASE_URL — parsed manually (not passed raw to libpq URI)
 
 Optional seed user + buckets:
   SEED_ADMIN_EMAIL     — if set with SEED_ADMIN_PASSWORD, upsert this user
@@ -21,29 +22,101 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 
-def normalize_dsn(url: str) -> str:
-    u = url.strip()
+def strip_env(value: str | None) -> str:
+    """Strip whitespace and optional surrounding quotes from .env values."""
+    if value is None:
+        return ""
+    s = value.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        return s[1:-1]
+    return s
+
+
+def connection_params_from_discrete_env() -> dict[str, object] | None:
+    """
+    Use POSTGRES_PASSWORD (+ optional host/user/db/port) when set explicitly.
+    Passwords with !, ^, @, etc. are safest here (no URI parsing).
+    """
+    password = strip_env(os.environ.get("POSTGRES_PASSWORD"))
+    if not password:
+        return None
+    host = strip_env(os.environ.get("POSTGRES_HOST")) or "postgres"
+    user = strip_env(os.environ.get("POSTGRES_USER")) or "postgres"
+    db = strip_env(os.environ.get("POSTGRES_DB")) or "notes"
+    port_s = strip_env(os.environ.get("POSTGRES_PORT")) or "5432"
+    return {
+        "host": host,
+        "port": int(port_s),
+        "user": user,
+        "password": password,
+        "dbname": db,
+    }
+
+
+def connection_params_from_url(url: str) -> dict[str, object]:
+    """
+    Parse postgres:// or postgresql:// URL into kwargs for psycopg2.connect(**params).
+    Handles passwords with special characters by splitting netloc carefully (not passing raw URI to libpq).
+    """
+    u = strip_env(url)
     if u.startswith("postgres://"):
-        return "postgresql://" + u[len("postgres://") :]
-    return u
+        u = "postgresql://" + u[len("postgres://") :]
+    parsed = urlparse(u)
+    netloc = parsed.netloc
+    if not netloc:
+        raise ValueError("Invalid POSTGRES_URL: missing host (netloc)")
+
+    # netloc: user:password@host:port — use last @ to split auth from host:port
+    if "@" not in netloc:
+        hostpart = netloc
+        user, password = "postgres", ""
+    else:
+        userinfo, hostpart = netloc.rsplit("@", 1)
+        if ":" in userinfo:
+            user, password = userinfo.split(":", 1)
+        else:
+            user, password = userinfo, ""
+        user, password = unquote(user), unquote(password)
+
+    hostpart = unquote(hostpart)
+    if ":" in hostpart:
+        host, port_s = hostpart.rsplit(":", 1)
+        if re.fullmatch(r"\d+", port_s):
+            port = int(port_s)
+        else:
+            host, port = hostpart, 5432
+    else:
+        host, port = hostpart, 5432
+
+    path = parsed.path or "/"
+    dbname = unquote(path.lstrip("/") or "postgres")
+
+    return {
+        "host": host,
+        "port": port,
+        "user": unquote(user),
+        "password": password,
+        "dbname": dbname,
+    }
 
 
-def get_connection_string() -> str:
-    url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL")
-    if url:
-        return normalize_dsn(url)
-    host = os.environ.get("POSTGRES_HOST", "localhost")
-    port = os.environ.get("POSTGRES_PORT", "5432")
-    user = os.environ.get("POSTGRES_USER", "postgres")
-    password = os.environ.get("POSTGRES_PASSWORD", "")
-    db = os.environ.get("POSTGRES_DB", "notes")
-    if password:
-        return f"postgresql://{user}:{password}@{host}:{port}/{db}"
-    return f"postgresql://{user}@{host}:{port}/{db}"
+def get_connection_params() -> dict[str, object]:
+    discrete = connection_params_from_discrete_env()
+    if discrete is not None:
+        return discrete
+    url = strip_env(os.environ.get("POSTGRES_URL")) or strip_env(
+        os.environ.get("DATABASE_URL")
+    )
+    if not url:
+        raise ValueError(
+            "Set POSTGRES_URL or POSTGRES_HOST + POSTGRES_PASSWORD + POSTGRES_DB (and optional POSTGRES_USER, POSTGRES_PORT)."
+        )
+    return connection_params_from_url(url)
 
 
 def ensure_deps():
@@ -81,15 +154,15 @@ def seed(args: argparse.Namespace) -> int:
     import bcrypt
     import psycopg2
 
-    dsn = get_connection_string()
     if args.dry_run:
-        print("[dry-run] Would connect using POSTGRES_URL / POSTGRES_* (password hidden)")
+        print("[dry-run] Would connect using POSTGRES_* (preferred) or POSTGRES_URL (password hidden)")
         print("[dry-run] SEED_ADMIN_EMAIL =", os.environ.get("SEED_ADMIN_EMAIL") or "(unset)")
         print("[dry-run] SEED_BUCKETS =", os.environ.get("SEED_BUCKETS", "General,Work"))
         return 0
 
     try:
-        conn = psycopg2.connect(dsn)
+        params = get_connection_params()
+        conn = psycopg2.connect(**params)
     except Exception as e:
         print("Failed to connect to Postgres:", e, file=sys.stderr)
         return 1

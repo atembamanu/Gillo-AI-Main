@@ -92,6 +92,23 @@ cat infra/migrations/001_init.sql \
 
 Load `POSTGRES_USER` / `POSTGRES_DB` from `.env` if needed (`set -a && source .env && set +a`).
 
+### PostgreSQL passwords with special characters (`!`, `^`, `@`, …)
+
+The **API** (`backend`), **worker**, and **seed script** all use the same rules:
+
+- Prefer **`POSTGRES_PASSWORD`** plus **`POSTGRES_HOST`**, **`POSTGRES_USER`**, **`POSTGRES_DB`**, **`POSTGRES_PORT`** in `.env` (see `docker-compose.prod.yml`).
+- Or use **`POSTGRES_URL`** only; the app parses it manually so libpq/pg is not given a broken URI.
+
+### Error: `could not translate host name "…@postgres"` (seed script)
+
+The password in **`POSTGRES_URL`** was being split wrong (special characters like `!`, `^`, `@` in URLs). The seed script now parses the URL safely, or **set `POSTGRES_PASSWORD`** (and optional `POSTGRES_HOST`, `POSTGRES_DB`, …) in `.env` so the container does not rely on a URI string for the password.
+
+### `couldn't find env file: /root/.env`
+
+Run Compose from the directory that contains your `.env`, or pass the full path:
+
+`docker compose -f /path/to/project/docker-compose.prod.yml --env-file /path/to/project/.env up -d`
+
 ### Error: `relation "users" does not exist` (42P01)
 
 Migrations were not applied (or were applied to a different database than **`POSTGRES_URL`** uses). Re-run §4 against the same Postgres instance and database name as in **`POSTGRES_URL`**.

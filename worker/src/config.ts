@@ -1,7 +1,4 @@
 export const config = {
-  postgresUrl:
-    process.env.POSTGRES_URL ||
-    'postgres://postgres:postgres@postgres:5432/notes',
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379',
   ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434',
   whisperUrl: process.env.WHISPER_URL || 'http://whisper:9000',
