@@ -45,8 +45,9 @@ async function main() {
 
   // Bearer tokens in Authorization do not need credentials: true; that flag tightens CORS
   // and can confuse browsers unless fetch() uses credentials: 'include' for cookies.
+  console.log(config.corsOrigin);
   await fastify.register(cors, {
-    origin: config.corsOrigin,
+    origin: ["https://www.gilloai.com","https://gilloai.com"],
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: false,
