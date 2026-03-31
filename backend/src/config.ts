@@ -37,8 +37,8 @@ export const config = {
   whisperUrl: getEnv('WHISPER_URL'),
   minioEndpoint: getEnv('MINIO_ENDPOINT'),
   minioRegion: getEnv('MINIO_REGION'),
-  minioAccessKey,
-  minioSecretKey,
+  minioAccessKey: getEnv('MINIO_ACCESS_KEY'),
+  minioSecretKey: getEnv('MINIO_SECRET_KEY'),
   minioBucket: getEnv('MINIO_BUCKET'),
   queueAttempts: Number(getEnv('QUEUE_ATTEMPTS'))
 };
