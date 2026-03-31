@@ -91,14 +91,6 @@ services:
       - redis
     expose:
       - "3010"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gillo-queues.rule=Host(`api.gilloai.com`) && PathPrefix(`/queues`)"
-      - "traefik.http.routers.gillo-queues.entrypoints=websecure"
-      - "traefik.http.routers.gillo-queues.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.gillo-queues.middlewares=gillo-queues-strip"
-      - "traefik.http.middlewares.gillo-queues-strip.stripprefix.prefixes=/queues"
-      - "traefik.http.services.gillo-queues.loadbalancer.server.port=3010"
     networks:
       - app_net
 
