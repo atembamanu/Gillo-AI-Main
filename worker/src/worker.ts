@@ -6,6 +6,25 @@ import { handleAudioJob, AudioJobPayload } from './pipelines/audioPipeline';
 
 const queueName = 'process_note';
 const warmupTimeoutMs = 120_000;
+const serviceWaitTimeoutMs = 300_000;
+const serviceWaitPollMs = 2_000;
+
+async function waitForHttpService(name: string, url: string, timeoutMs = serviceWaitTimeoutMs): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const res = await fetch(url, { method: 'GET' });
+      if (res.ok) {
+        console.log(`[worker] ${name} is ready at ${url}`);
+        return;
+      }
+    } catch {
+      // Service not ready yet; keep polling.
+    }
+    await new Promise((resolve) => setTimeout(resolve, serviceWaitPollMs));
+  }
+  throw new Error(`[worker] Timeout waiting for ${name} at ${url}`);
+}
 
 type JobPayload = TextJobPayload | AudioJobPayload;
 
@@ -38,6 +57,10 @@ async function warmupOllama(): Promise<void> {
 
 async function main() {
   const connection = new Redis(config.redisUrl, { maxRetriesPerRequest: null });
+
+  console.log('[worker] Waiting for Whisper and Ollama...');
+  await waitForHttpService('Whisper', `${config.whisperUrl}/docs`);
+  await waitForHttpService('Ollama', `${config.ollamaUrl}/api/tags`);
 
   console.log('[worker] Warming up Ollama...');
   await warmupOllama();

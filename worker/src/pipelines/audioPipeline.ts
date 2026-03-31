@@ -81,6 +81,7 @@ export async function handleAudioJob(job: AudioJobPayload): Promise<void> {
   let transcript: string;
   let referenceDate: string | undefined;
   let referenceTimezone: string | undefined = job.referenceTimezone;
+  let bucketFields: TextJobPayload['bucketFields'];
 
   if (job.rawKey) {
     console.log('[worker:audio] Processing raw upload:', job.rawKey);
@@ -120,6 +121,19 @@ export async function handleAudioJob(job: AudioJobPayload): Promise<void> {
   referenceDate = created[0]?.created_at;
   referenceTimezone = referenceTimezone || created[0]?.timezone || 'UTC';
 
+  const buckets = await query<{ fields: unknown }>(
+    'SELECT COALESCE(fields, \'[]\') AS fields FROM buckets WHERE id = $1 AND user_id = $2',
+    [job.bucketId, job.userId]
+  );
+  if (buckets[0]) {
+    const rawFields = buckets[0].fields;
+    bucketFields = Array.isArray(rawFields)
+      ? (rawFields as TextJobPayload['bucketFields'])
+      : typeof rawFields === 'string'
+        ? (JSON.parse(rawFields || '[]') as TextJobPayload['bucketFields'])
+        : undefined;
+  }
+
   const textJob: TextJobPayload = {
     type: 'text',
     userId: job.userId,
@@ -127,7 +141,8 @@ export async function handleAudioJob(job: AudioJobPayload): Promise<void> {
     noteId: job.noteId,
     originalText: transcript,
     referenceDate,
-    referenceTimezone
+    referenceTimezone,
+    bucketFields
   };
 
   await handleTextJob(textJob);
