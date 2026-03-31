@@ -224,6 +224,18 @@ export function App() {
     }
   };
 
+  const handleRetryMapping = async (note: Note) => {
+    setError(null);
+    try {
+      await notesApi.retryMapping(note.id);
+      setNotes((prev) =>
+        prev.map((n) => (n.id === note.id ? { ...n, structured: {} } : n))
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Failed to retry mapping');
+    }
+  };
+
   const handleCreateBucket = async () => {
     if (!newBucketName.trim()) return;
     setError(null);
@@ -468,6 +480,7 @@ export function App() {
             onViewInsight={(note) => setNoteToView(note)}
             onArchiveInsight={(note) => setNoteToArchive(note)}
             onDeleteInsight={(note) => setNoteToDelete(note)}
+            onRetryMapping={handleRetryMapping}
           />
         )}
 
@@ -477,7 +490,8 @@ export function App() {
           <ProfileTab
             email={user.email}
             displayName={user.display_name}
-            onSaveDisplayName={(name) => updateProfile({ display_name: name })}
+            timezone={user.timezone || 'UTC'}
+            onSaveProfile={({ display_name, timezone }) => updateProfile({ display_name, timezone })}
             onLogout={logout}
           />
         )}
@@ -495,6 +509,7 @@ export function App() {
             onViewInsight={setNoteToView}
             onArchiveInsight={setNoteToArchive}
             onDeleteInsight={setNoteToDelete}
+            onRetryMapping={handleRetryMapping}
           />
         )}
 
@@ -519,6 +534,7 @@ export function App() {
           note={noteToView}
           bucketName={bucketName(noteToView.bucketId)}
           onClose={() => setNoteToView(null)}
+          onRetryMapping={() => void handleRetryMapping(noteToView)}
           onArchive={() => {
             setNoteToArchive(noteToView);
             setNoteToView(null);

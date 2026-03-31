@@ -5,7 +5,7 @@ services:
       - frontend
       - api-server
     ports:
-      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_PORT}:80"
     volumes:
       - ./infra/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
@@ -15,7 +15,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     networks:
       - app_net
 
@@ -23,21 +23,21 @@ services:
     build:
       context: ./backend
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV}
       - PORT=3000
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
-      - POSTGRES_URL=${POSTGRES_URL:-postgres://postgres:postgres@postgres:5432/notes}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-prod}
-      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
-      - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
-      - MINIO_BUCKET=${MINIO_BUCKET:-audio-notes}
-      - MINIO_REGION=${MINIO_REGION:-us-east-1}
-      - QUEUE_ATTEMPTS=${QUEUE_ATTEMPTS:-3}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - WHISPER_URL=${WHISPER_URL}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - MINIO_REGION=${MINIO_REGION}
+      - QUEUE_ATTEMPTS=${QUEUE_ATTEMPTS}
     depends_on:
       - postgres
       - redis
@@ -48,19 +48,19 @@ services:
     build:
       context: ./worker
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - POSTGRES_URL=${POSTGRES_URL:-postgres://postgres:postgres@postgres:5432/notes}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
-      - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
-      - API_BASE_URL=${API_BASE_URL:-http://api-server:3000}
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
-      - MINIO_BUCKET=${MINIO_BUCKET:-audio-notes}
-      - MINIO_REGION=${MINIO_REGION:-us-east-1}
-      - QUEUE_CONCURRENCY=${QUEUE_CONCURRENCY:-1}
+      - NODE_ENV=${NODE_ENV}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - REDIS_URL=${REDIS_URL}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - WHISPER_URL=${WHISPER_URL}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - API_BASE_URL=${API_BASE_URL}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - MINIO_REGION=${MINIO_REGION}
+      - QUEUE_CONCURRENCY=${QUEUE_CONCURRENCY}
     depends_on:
       - postgres
       - redis
@@ -74,15 +74,15 @@ services:
     build:
       context: ./bullmq-dashboard
     environment:
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-admin}
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-change-me}
-      - QUEUE_NAMES=${QUEUE_NAMES:-process_note}
+      - REDIS_URL=${REDIS_URL}
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      - QUEUE_NAMES=${QUEUE_NAMES}
       - PORT=3010
     depends_on:
       - redis
     ports:
-      - "${BULLMQ_DASHBOARD_PORT:-3010}:3010"
+      - "${BULLMQ_DASHBOARD_PORT}:3010"
     networks:
       - app_net
 
@@ -91,9 +91,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-notes}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -107,7 +107,7 @@ services:
   whisper:
     image: onerahmet/openai-whisper-asr-webservice
     environment:
-      - ASR_MODEL=${ASR_MODEL:-base}
+      - ASR_MODEL=${ASR_MODEL}
     ports:
       - "9000:9000"
     networks:
@@ -125,8 +125,8 @@ services:
   minio:
     image: minio/minio:latest
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     ports:
       - "9001:9001"

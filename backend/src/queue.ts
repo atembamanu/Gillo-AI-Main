@@ -25,6 +25,8 @@ export type ProcessNoteJobPayload =
       bucketId: string;
       noteId: string;
       originalText: string;
+      referenceDate?: string;
+      referenceTimezone?: string;
       bucketFields?: BucketField[];
     }
   | {
@@ -34,6 +36,7 @@ export type ProcessNoteJobPayload =
       noteId: string;
       rawKey?: string;
       audioUrl?: string;
+      referenceTimezone?: string;
     };
 
 export async function enqueueProcessNoteJob(job: ProcessNoteJobPayload): Promise<void> {

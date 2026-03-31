@@ -9,6 +9,7 @@ interface ViewInsightModalProps {
   onClose: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  onRetryMapping?: () => void;
 }
 
 export function ViewInsightModal({
@@ -17,7 +18,11 @@ export function ViewInsightModal({
   onClose,
   onArchive,
   onDelete,
+  onRetryMapping,
 }: ViewInsightModalProps) {
+  const hasError = Boolean((note.structured as Record<string, unknown>)?._error);
+  const isMapping = !hasError && Object.keys(note.structured).length === 0;
+
   return (
     <Modal zIndex={20} panelClassName="max-w-lg rounded-2xl bg-white p-4 shadow-lg">
       <h3 className="mb-2 text-sm font-semibold text-brand-dark">
@@ -44,6 +49,11 @@ export function ViewInsightModal({
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
           Close
         </Button>
+        {(hasError || isMapping) && onRetryMapping && (
+          <Button type="button" variant="outline" size="sm" onClick={onRetryMapping}>
+            Retry mapping
+          </Button>
+        )}
         <Button type="button" variant="outline" size="sm" onClick={onArchive}>
           Archive
         </Button>

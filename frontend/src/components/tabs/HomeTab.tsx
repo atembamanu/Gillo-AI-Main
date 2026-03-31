@@ -15,6 +15,7 @@ interface HomeTabProps {
     onViewInsight: (note: Note) => void;
     onArchiveInsight: (note: Note) => void;
     onDeleteInsight: (note: Note) => void;
+    onRetryMapping: (note: Note) => void;
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({
@@ -27,6 +28,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onViewInsight,
   onArchiveInsight,
   onDeleteInsight,
+  onRetryMapping,
 }) => {
   const [bucketFilterId, setBucketFilterId] = useState<string>('');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -264,6 +266,16 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   <div className="mb-4">{insightsContent}</div>
 
                   <div className="flex flex-wrap gap-2">
+                    {(hasError || isMapping) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onRetryMapping(note)}
+                      >
+                        Retry mapping
+                      </Button>
+                    )}
                     {Object.keys(note.structured).length > 0 &&
                       !(note.structured as Record<string, unknown>)?._error && (
                         <>

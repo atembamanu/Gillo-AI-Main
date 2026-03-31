@@ -11,8 +11,18 @@ const registerBodySchema = z.object({
 const loginBodySchema = registerBodySchema;
 
 const patchMeBodySchema = z.object({
-  display_name: z.string().max(100).nullable().optional()
+  display_name: z.string().max(100).nullable().optional(),
+  timezone: z.string().min(1).optional()
 });
+
+function isValidTimeZone(tz: string): boolean {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: tz }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function registerAuthRoutes(fastify: FastifyInstance) {
   fastify.post('/register', async (request, reply) => {
@@ -32,8 +42,8 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const users = await query<{ id: string; email: string; display_name: string | null }>(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, display_name',
+    const users = await query<{ id: string; email: string; display_name: string | null; timezone: string }>(
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, display_name, timezone',
       [email, passwordHash]
     );
     const user = users[0];
@@ -45,7 +55,10 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
     );
 
     const token = fastify.jwt.sign({ sub: user.id });
-    return reply.send({ token, user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
+    return reply.send({
+      token,
+      user: { id: user.id, email: user.email, display_name: user.display_name ?? null, timezone: user.timezone ?? 'UTC' }
+    });
   });
 
   fastify.post('/login', async (request, reply) => {
@@ -56,8 +69,8 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
     const { email, password } = parse.data;
 
-    const users = await query<{ id: string; email: string; password_hash: string; display_name: string | null }>(
-      'SELECT id, email, password_hash, display_name FROM users WHERE email = $1',
+    const users = await query<{ id: string; email: string; password_hash: string; display_name: string | null; timezone: string }>(
+      'SELECT id, email, password_hash, display_name, timezone FROM users WHERE email = $1',
       [email]
     );
     const user = users[0];
@@ -73,7 +86,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
     const token = fastify.jwt.sign({ sub: user.id });
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, display_name: user.display_name ?? null }
+      user: { id: user.id, email: user.email, display_name: user.display_name ?? null, timezone: user.timezone ?? 'UTC' }
     });
   });
 
@@ -88,8 +101,8 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: 'Unauthorized' });
       }
 
-      const users = await query<{ id: string; email: string; display_name: string | null }>(
-        'SELECT id, email, display_name FROM users WHERE id = $1',
+      const users = await query<{ id: string; email: string; display_name: string | null; timezone: string }>(
+        'SELECT id, email, display_name, timezone FROM users WHERE id = $1',
         [userId]
       );
       const user = users[0];
@@ -97,7 +110,9 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'User not found' });
       }
 
-      return reply.send({ user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
+      return reply.send({
+        user: { id: user.id, email: user.email, display_name: user.display_name ?? null, timezone: user.timezone ?? 'UTC' }
+      });
     }
   );
 
@@ -117,16 +132,22 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Invalid request body' });
       }
 
-      const { display_name } = parse.data;
+      const { display_name, timezone } = parse.data;
+      if (timezone !== undefined && !isValidTimeZone(timezone)) {
+        return reply.status(400).send({ error: 'Invalid timezone' });
+      }
       if (display_name !== undefined) {
         await query(
           'UPDATE users SET display_name = $1 WHERE id = $2',
           [display_name, userId]
         );
       }
+      if (timezone !== undefined) {
+        await query('UPDATE users SET timezone = $1 WHERE id = $2', [timezone, userId]);
+      }
 
-      const users = await query<{ id: string; email: string; display_name: string | null }>(
-        'SELECT id, email, display_name FROM users WHERE id = $1',
+      const users = await query<{ id: string; email: string; display_name: string | null; timezone: string }>(
+        'SELECT id, email, display_name, timezone FROM users WHERE id = $1',
         [userId]
       );
       const user = users[0];
@@ -134,7 +155,9 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'User not found' });
       }
 
-      return reply.send({ user: { id: user.id, email: user.email, display_name: user.display_name ?? null } });
+      return reply.send({
+        user: { id: user.id, email: user.email, display_name: user.display_name ?? null, timezone: user.timezone ?? 'UTC' }
+      });
     }
   );
 }

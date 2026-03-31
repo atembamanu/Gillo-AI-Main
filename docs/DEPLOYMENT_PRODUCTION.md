@@ -31,6 +31,9 @@ Recommended production values:
 - `QUEUE_CONCURRENCY=1`
 - `QUEUE_ATTEMPTS=3`
 
+Prisma runtime compatibility note:
+- Backend/worker use Debian-based Node images (`bookworm-slim`) to avoid Alpine musl/OpenSSL engine mismatches with Prisma.
+
 ## 3) Deploy stack
 Use `docker-compose.prod.yml` in Dokploy.
 
@@ -44,6 +47,18 @@ Order:
    - `GET https://api.gilloai.com/queues`
    - Login with `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`
    - Queue stats API: `GET https://api.gilloai.com/queues/stats`
+
+## 3.1) Safe rollout for JWT changes
+If you changed `JWT_SECRET`, previously issued browser tokens become invalid by design.
+Rollout sequence:
+1. Deploy backend with the new secret.
+2. Deploy frontend with auto token-clear logic.
+3. Ask users to re-login once.
+4. Confirm `/auth/me` returns `200` after login.
+
+Expected one-time behavior:
+- First request with stale token returns `401`.
+- Frontend clears local token automatically and forces fresh login.
 
 ## 4) Prisma baseline migration for existing DB
 For an existing DB already created by `infra/migrations/*.sql`:
@@ -59,6 +74,7 @@ For an existing DB already created by `infra/migrations/*.sql`:
 
 ## 6) Smoke checks after deploy
 - Register/login works.
+- Invalid/stale token is auto-cleared and user is redirected to login.
 - Create text insight -> mapping appears.
 - Upload audio insight -> audio plays.
 - Transcript replaces pending text.

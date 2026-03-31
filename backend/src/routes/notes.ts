@@ -23,6 +23,11 @@ const updateStructuredBodySchema = z.object({
 });
 
 export async function registerNoteRoutes(fastify: FastifyInstance) {
+  async function getUserTimeZone(userId: string): Promise<string> {
+    const users = await query<{ timezone: string | null }>('SELECT timezone FROM users WHERE id = $1', [userId]);
+    return users[0]?.timezone || 'UTC';
+  }
+
   fastify.get(
     '/',
     {
@@ -182,6 +187,7 @@ export async function registerNoteRoutes(fastify: FastifyInstance) {
       }
 
       const { bucketId, text } = parse.data;
+      const referenceTimezone = await getUserTimeZone(userId);
 
       const buckets = await query<{ id: string; fields: unknown }>(
         'SELECT id, COALESCE(fields, \'[]\') AS fields FROM buckets WHERE id = $1 AND user_id = $2',
@@ -218,6 +224,8 @@ export async function registerNoteRoutes(fastify: FastifyInstance) {
         bucketId,
         noteId: note.id,
         originalText: note.original_text,
+        referenceDate: note.created_at,
+        referenceTimezone,
         bucketFields: bucketFields.length > 0 ? bucketFields : undefined
       });
 
@@ -253,6 +261,7 @@ export async function registerNoteRoutes(fastify: FastifyInstance) {
       }
 
       const { bucketId, audioUrl, rawKey, archiveUrl, durationSeconds, waveformJson } = parse.data;
+      const referenceTimezone = await getUserTimeZone(userId);
 
       const buckets = await query<{ id: string }>(
         'SELECT id FROM buckets WHERE id = $1 AND user_id = $2',
@@ -294,8 +303,8 @@ export async function registerNoteRoutes(fastify: FastifyInstance) {
 
       await enqueueProcessNoteJob(
         rawKey
-          ? { type: 'audio', userId, bucketId, noteId: note.id, rawKey }
-          : { type: 'audio', userId, bucketId, noteId: note.id, audioUrl: archiveUrl ?? audioUrl }
+          ? { type: 'audio', userId, bucketId, noteId: note.id, rawKey, referenceTimezone }
+          : { type: 'audio', userId, bucketId, noteId: note.id, audioUrl: archiveUrl ?? audioUrl, referenceTimezone }
       );
 
       return reply.status(201).send({
@@ -382,6 +391,75 @@ export async function registerNoteRoutes(fastify: FastifyInstance) {
           archived: note.archived
         }
       });
+    }
+  );
+
+  fastify.post(
+    '/:id/retry-mapping',
+    {
+      preHandler: [fastify.authenticate]
+    },
+    async (request, reply) => {
+      const userId = (request.user as any)?.sub as string | undefined;
+      if (!userId) {
+        return reply.status(401).send({ error: 'Unauthorized' });
+      }
+      const noteId = (request.params as any)?.id as string;
+      if (!noteId) {
+        return reply.status(400).send({ error: 'Invalid note id' });
+      }
+
+      const notes = await query<{
+        id: string;
+        bucket_id: string;
+        original_text: string;
+        created_at: string;
+      }>(
+        'SELECT id, bucket_id, original_text, created_at FROM notes WHERE id = $1 AND user_id = $2',
+        [noteId, userId]
+      );
+      const note = notes[0];
+      if (!note) {
+        return reply.status(404).send({ error: 'Note not found' });
+      }
+
+      const text = (note.original_text ?? '').trim();
+      if (!text || text.toLowerCase().includes('transcription pending')) {
+        return reply.status(409).send({ error: 'Note text is not ready for mapping yet' });
+      }
+
+      const buckets = await query<{ id: string; fields: unknown }>(
+        'SELECT id, COALESCE(fields, \'[]\') AS fields FROM buckets WHERE id = $1 AND user_id = $2',
+        [note.bucket_id, userId]
+      );
+      if (!buckets[0]) {
+        return reply.status(404).send({ error: 'Bucket not found' });
+      }
+      const bucketFields = Array.isArray(buckets[0].fields)
+        ? (buckets[0].fields as { name: string; description?: string; ai_description?: string }[])
+        : typeof buckets[0].fields === 'string'
+          ? JSON.parse(buckets[0].fields || '[]') as { name: string; description?: string; ai_description?: string }[]
+          : [];
+
+      const referenceTimezone = await getUserTimeZone(userId);
+
+      await query(
+        'UPDATE notes SET structured_json = NULL, updated_at = now() WHERE id = $1 AND user_id = $2',
+        [noteId, userId]
+      );
+
+      await enqueueProcessNoteJob({
+        type: 'text',
+        userId,
+        bucketId: note.bucket_id,
+        noteId: note.id,
+        originalText: text,
+        referenceDate: note.created_at,
+        referenceTimezone,
+        bucketFields: bucketFields.length > 0 ? bucketFields : undefined
+      });
+
+      return reply.send({ ok: true });
     }
   );
 

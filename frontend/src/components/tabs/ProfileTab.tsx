@@ -5,17 +5,22 @@ import { Input } from '../ui/Input';
 interface ProfileTabProps {
   email: string;
   displayName: string | null | undefined;
-  onSaveDisplayName: (displayName: string | null) => Promise<void>;
+  timezone?: string;
+  onSaveProfile: (data: { display_name: string | null; timezone: string }) => Promise<void>;
   onLogout: () => void;
 }
 
 export const ProfileTab: React.FC<ProfileTabProps> = ({
   email,
   displayName,
-  onSaveDisplayName,
+  timezone,
+  onSaveProfile,
   onLogout,
 }) => {
   const [name, setName] = useState(displayName ?? '');
+  const [selectedTimezone, setSelectedTimezone] = useState(timezone || 'UTC');
+  const [timezoneQuery, setTimezoneQuery] = useState(timezone || 'UTC');
+  const [timezoneOptions, setTimezoneOptions] = useState<string[]>(['UTC']);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -23,14 +28,29 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     setName(displayName ?? '');
   }, [displayName]);
 
+  useEffect(() => {
+    setSelectedTimezone(timezone || 'UTC');
+    setTimezoneQuery(timezone || 'UTC');
+  }, [timezone]);
+
+  useEffect(() => {
+    const supportedValuesOf = (Intl as any).supportedValuesOf as ((k: string) => string[]) | undefined;
+    const ianaZones = supportedValuesOf ? supportedValuesOf('timeZone') : [];
+    const merged = Array.from(new Set(['UTC', ...ianaZones])).sort((a, b) => a.localeCompare(b));
+    setTimezoneOptions(merged);
+  }, []);
+
   const displayLabel = (displayName?.trim() || email).trim();
   const initial = displayLabel.charAt(0).toUpperCase();
 
   const handleSave = async () => {
+    const resolvedTimezone = timezoneOptions.includes(timezoneQuery) ? timezoneQuery : 'UTC';
     setSaving(true);
     setSaveMessage('idle');
     try {
-      await onSaveDisplayName(name.trim() || null);
+      await onSaveProfile({ display_name: name.trim() || null, timezone: resolvedTimezone });
+      setSelectedTimezone(resolvedTimezone);
+      setTimezoneQuery(resolvedTimezone);
       setSaveMessage('success');
     } catch {
       setSaveMessage('error');
@@ -38,6 +58,10 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       setSaving(false);
     }
   };
+
+  const filteredTimezoneOptions = timezoneQuery
+    ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(timezoneQuery.toLowerCase()))
+    : timezoneOptions;
 
   return (
     <section className="rounded-2xl border border-brand-dark/10 bg-brand-bg p-4 shadow-sm sm:p-6">
@@ -89,6 +113,41 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
             className="w-full bg-brand-bg text-brand-dark/80"
             aria-readonly="true"
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="profile-timezone"
+            className="mb-1 block text-sm font-medium text-brand-dark"
+          >
+            Timezone
+          </label>
+          <Input
+            id="profile-timezone"
+            type="text"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="false"
+            list="profile-timezone-options"
+            value={timezoneQuery}
+            onChange={(e) => {
+              const val = e.target.value;
+              setTimezoneQuery(val);
+              if (timezoneOptions.includes(val)) {
+                setSelectedTimezone(val);
+              }
+            }}
+            placeholder="Search timezone (e.g. Africa/Nairobi)"
+            className="w-full bg-brand-bg text-brand-dark"
+          />
+          <datalist id="profile-timezone-options">
+            {filteredTimezoneOptions.map((tz) => (
+              <option key={tz} value={tz} />
+            ))}
+          </datalist>
+          <p className="mt-1 text-xs text-brand-dark/60">
+            Selected: {timezoneOptions.includes(timezoneQuery) ? timezoneQuery : selectedTimezone}
+          </p>
         </div>
       </div>
 

@@ -54,6 +54,18 @@ async function main() {
       try {
         await request.jwtVerify();
       } catch (err) {
+        const e = err as any;
+        fastify.log.warn(
+          {
+            path: request.raw?.url,
+            method: request.method,
+            ip: request.ip,
+            userAgent: request.headers['user-agent'],
+            code: e?.code,
+            msg: e?.message
+          },
+          'auth verification failed'
+        );
         return reply.send(err);
       }
     }

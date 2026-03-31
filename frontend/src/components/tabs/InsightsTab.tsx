@@ -14,6 +14,7 @@ interface InsightsTabProps {
   onViewInsight: (note: Note) => void;
   onArchiveInsight: (note: Note) => void;
   onDeleteInsight: (note: Note) => void;
+  onRetryMapping: (note: Note) => void;
 }
 
 export const InsightsTab: React.FC<InsightsTabProps> = ({
@@ -25,6 +26,7 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({
   onViewInsight,
   onArchiveInsight,
   onDeleteInsight,
+  onRetryMapping,
 }) => {
   const [bucketFilterId, setBucketFilterId] = useState<string>('');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -225,6 +227,16 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({
                 {insightsContent}
 
                 <div className="flex flex-wrap gap-2">
+                  {(hasError || isMapping) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onRetryMapping(note)}
+                    >
+                      Retry mapping
+                    </Button>
+                  )}
                   {Object.keys(note.structured).length > 0 &&
                     !(note.structured as Record<string, unknown>)?._error && (
                       <>

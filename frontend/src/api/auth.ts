@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   display_name?: string | null;
+  timezone?: string;
 }
 
 export async function register(email: string, password: string): Promise<{ token: string; user: User }> {
@@ -34,7 +35,7 @@ export async function me(): Promise<{ user: User }> {
   return request<{ user: User }>('/auth/me');
 }
 
-export async function updateProfile(data: { display_name?: string | null }): Promise<{ user: User }> {
+export async function updateProfile(data: { display_name?: string | null; timezone?: string }): Promise<{ user: User }> {
   return request<{ user: User }>('/auth/me', {
     method: 'PATCH',
     body: JSON.stringify(data),

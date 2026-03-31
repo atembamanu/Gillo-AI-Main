@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { getToken } from '../api/client';
+import { clearToken, getToken } from '../api/client';
 import * as authApi from '../api/auth';
 import type { User } from '../api/auth';
 
@@ -21,7 +21,7 @@ interface AuthContextValue extends AuthState {
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
-  updateProfile: (data: { display_name?: string | null }) => Promise<void>;
+  updateProfile: (data: { display_name?: string | null; timezone?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,6 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadUser();
   }, [loadUser]);
+
+  useEffect(() => {
+    const onExpired = () => {
+      clearToken();
+      setUser(null);
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -88,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const updateProfile = useCallback(async (data: { display_name?: string | null }) => {
+  const updateProfile = useCallback(async (data: { display_name?: string | null; timezone?: string }) => {
     try {
       const { user: u } = await authApi.updateProfile(data);
       setUser(u);

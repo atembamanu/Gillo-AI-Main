@@ -14,6 +14,7 @@ export interface AudioJobPayload {
   /** When set, worker runs FFmpeg then Whisper. Otherwise Whisper only (legacy). */
   rawKey?: string;
   audioUrl?: string;
+  referenceTimezone?: string;
 }
 
 interface WhisperResponse {
@@ -78,6 +79,8 @@ async function runWhisperWithUrl(audioUrl: string): Promise<string> {
 
 export async function handleAudioJob(job: AudioJobPayload): Promise<void> {
   let transcript: string;
+  let referenceDate: string | undefined;
+  let referenceTimezone: string | undefined = job.referenceTimezone;
 
   if (job.rawKey) {
     console.log('[worker:audio] Processing raw upload:', job.rawKey);
@@ -110,12 +113,21 @@ export async function handleAudioJob(job: AudioJobPayload): Promise<void> {
     [transcript, job.noteId]
   );
 
+  const created = await query<{ created_at: string; timezone: string | null }>(
+    'SELECT n.created_at, u.timezone FROM notes n JOIN users u ON u.id = n.user_id WHERE n.id = $1',
+    [job.noteId]
+  );
+  referenceDate = created[0]?.created_at;
+  referenceTimezone = referenceTimezone || created[0]?.timezone || 'UTC';
+
   const textJob: TextJobPayload = {
     type: 'text',
     userId: job.userId,
     bucketId: job.bucketId,
     noteId: job.noteId,
-    originalText: transcript
+    originalText: transcript,
+    referenceDate,
+    referenceTimezone
   };
 
   await handleTextJob(textJob);

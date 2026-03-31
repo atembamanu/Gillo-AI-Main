@@ -90,3 +90,9 @@ export async function deleteNote(noteId: string): Promise<void> {
     method: 'DELETE',
   });
 }
+
+export async function retryMapping(noteId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/notes/${noteId}/retry-mapping`, {
+    method: 'POST',
+  });
+}
