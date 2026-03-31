@@ -172,7 +172,7 @@ services:
       timeout: 10s
       retries: 6
     mem_limit: 3072m
-    cpus: "2.5"
+    cpus: "2.0"
     volumes:
       - ollama_data:/root/.ollama
     networks:
