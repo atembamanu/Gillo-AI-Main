@@ -1,12 +1,3 @@
-# Production stack for Hostinger VPS + Dokploy (split domains).
-# Copy .env.example → .env, set secrets, then: docker compose -f docker-compose.prod.yml up -d --build
-#
-# Map in Dokploy / Traefik:
-#   https://gilloai.com      → service: frontend (port 80)
-#   https://api.gilloai.com  → service: api-server (port 3000)
-#
-# Do not publish postgres, redis, minio, ollama, whisper to the public internet.
-
 services:
   frontend:
     build:
@@ -16,149 +7,177 @@ services:
     restart: unless-stopped
     expose:
       - "80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gillo-web.rule=Host(`gilloai.com`)"
+      - "traefik.http.routers.gillo-web.entrypoints=websecure"
+      - "traefik.http.routers.gillo-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gillo-web.loadbalancer.server.port=80"
+    depends_on:
+      - api-server
     networks:
       - app_net
-    mem_limit: 128m
 
   api-server:
     build:
       context: ./backend
     restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: "3000"
-      POSTGRES_URL: ${POSTGRES_URL}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      JWT_SECRET: ${JWT_SECRET}
-      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
-      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
-      MINIO_REGION: ${MINIO_REGION:-us-east-1}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_BUCKET: ${MINIO_BUCKET:-audio-notes}
-      PUBLIC_API_URL: ${PUBLIC_API_URL}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-    depends_on:
-      postgres:
-        condition: service_started
-      redis:
-        condition: service_started
-      minio:
-        condition: service_started
     expose:
       - "3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://gilloai.com}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
+      - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET:-audio-notes}
+      - MINIO_REGION=${MINIO_REGION:-us-east-1}
+      - QUEUE_ATTEMPTS=${QUEUE_ATTEMPTS:-3}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gillo-api.rule=Host(`api.gilloai.com`)"
+      - "traefik.http.routers.gillo-api.entrypoints=websecure"
+      - "traefik.http.routers.gillo-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gillo-api.loadbalancer.server.port=3000"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     networks:
       - app_net
-    mem_limit: 512m
 
   worker:
     build:
       context: ./worker
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      POSTGRES_URL: ${POSTGRES_URL}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
-      WHISPER_URL: ${WHISPER_URL:-http://whisper:9000}
-      API_BASE_URL: ${API_BASE_URL:-http://api-server:3000}
-      PUBLIC_API_URL: ${PUBLIC_API_URL}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_BUCKET: ${MINIO_BUCKET:-audio-notes}
-      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      - NODE_ENV=production
+      - POSTGRES_URL=${POSTGRES_URL}
+      - REDIS_URL=${REDIS_URL}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+      - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
+      - API_BASE_URL=${API_BASE_URL:-http://api-server:3000}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET:-audio-notes}
+      - MINIO_REGION=${MINIO_REGION:-us-east-1}
+      - QUEUE_CONCURRENCY=${QUEUE_CONCURRENCY:-1}
     depends_on:
-      postgres:
-        condition: service_started
-      redis:
-        condition: service_started
-      minio:
-        condition: service_started
-      ollama:
-        condition: service_started
-      whisper:
-        condition: service_started
+      - api-server
+      - redis
+      - whisper
+      - ollama
+      - minio
     networks:
       - app_net
-    mem_limit: 1536m
+
+  bullmq-dashboard:
+    build:
+      context: ./bullmq-dashboard
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      - QUEUE_NAMES=${QUEUE_NAMES:-process_note}
+      - PORT=3010
+    depends_on:
+      - redis
+    expose:
+      - "3010"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gillo-queues.rule=Host(`api.gilloai.com`) && PathPrefix(`/queues`)"
+      - "traefik.http.routers.gillo-queues.entrypoints=websecure"
+      - "traefik.http.routers.gillo-queues.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.gillo-queues.middlewares=gillo-queues-strip"
+      - "traefik.http.middlewares.gillo-queues-strip.stripprefix.prefixes=/queues"
+      - "traefik.http.services.gillo-queues.loadbalancer.server.port=3010"
+    networks:
+      - app_net
 
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-notes}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    networks:
-      - app_net
-    mem_limit: 512m
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-notes}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 20s
       timeout: 5s
       retries: 5
+    networks:
+      - app_net
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # BullMQ expects noeviction (do not evict queue keys). Raise host RAM / Redis mem if needed.
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - redisdata:/data
+      - redis_data:/data
     networks:
       - app_net
-    mem_limit: 640m
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  minio:
-    image: minio/minio:latest
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    networks:
-      - app_net
-    mem_limit: 512m
-
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    environment:
-      OLLAMA_NUM_PARALLEL: "1"
-      OLLAMA_MAX_LOADED_MODELS: "1"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - app_net
-    mem_limit: 4g
-    cpus: 2
 
   whisper:
     image: onerahmet/openai-whisper-asr-webservice:latest
     restart: unless-stopped
     environment:
-      ASR_MODEL: ${ASR_MODEL:-base}
-      ASR_ENGINE: openai_whisper
+      - ASR_MODEL=${ASR_MODEL:-base}
+      - ASR_ENGINE=faster_whisper
+    expose:
+      - "9000"
     networks:
       - app_net
-    mem_limit: 1536m
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app_net
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    expose:
+      - "9000"
+      - "9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - app_net
 
 volumes:
   pgdata:
-  redisdata:
+  redis_data:
   ollama_data:
   minio_data:
 

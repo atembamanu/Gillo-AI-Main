@@ -85,10 +85,7 @@ export async function handleAudioJob(job: AudioJobPayload): Promise<void> {
     const mime = job.rawKey.endsWith('.webm') ? 'audio/webm' : job.rawKey.endsWith('.mp3') ? 'audio/mpeg' : 'audio/webm';
     const result = await processAndUploadAudio(job.userId, job.bucketId, rawBuffer, mime);
 
-    const publicPath = (key: string) =>
-      config.publicApiUrl
-        ? `${config.publicApiUrl}/notes/audio/file/${encodeURIComponent(key)}`
-        : `/api/notes/audio/file/${encodeURIComponent(key)}`;
+    const publicPath = (key: string) => `/api/notes/audio/file/${encodeURIComponent(key)}`;
     await query(
       `UPDATE notes SET audio_url = $1, archive_url = $2, duration_seconds = $3, waveform_json = $4, updated_at = now() WHERE id = $5`,
       [

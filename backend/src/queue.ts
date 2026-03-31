@@ -9,7 +9,7 @@ const connection = new Redis(config.redisUrl, {
 export const processNoteQueue = new Queue<ProcessNoteJobPayload>('process_note', {
   connection,
   defaultJobOptions: {
-    attempts: 3,
+    attempts: config.queueAttempts,
     backoff: { type: 'exponential', delay: 2000 },
     removeOnComplete: { count: 500 },
     removeOnFail: { count: 1000 },

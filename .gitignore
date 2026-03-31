@@ -1,22 +1,26 @@
-# Secrets and local overrides — never commit
 .env
+.env.*
+!.env.example
 
-# Dependencies & build output
-node_modules/
-**/dist/
-**/build/
-*.tsbuildinfo
-
-# Logs & OS
-*.log
 .DS_Store
-Thumbs.db
+*.log
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+node_modules/
+**/node_modules/
 
-# Optional local Compose overrides (not committed)
-docker-compose.override.yml
+dist/
+**/dist/
+.vite/
+coverage/
+
+.cursor/
+!.cursor/rules/
+
+backend/prisma/dev.db
+worker/prisma/dev.db
+
+pgdata/
+ollama_data/
+minio_data/
+
+*.pid

@@ -1,17 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db';
-import { config } from '../config';
 import { getObjectStream, uploadObject } from '../storage/minio';
 import { enqueueProcessNoteJob } from '../queue';
-
-/** Browser-facing URL for streaming a MinIO object (dev: /api/... behind nginx; prod: https://api.../notes/...). */
-function buildAudioFileUrl(key: string): string {
-  if (config.publicApiUrl) {
-    return `${config.publicApiUrl}/notes/audio/file/${encodeURIComponent(key)}`;
-  }
-  return `/api/notes/audio/file/${encodeURIComponent(key)}`;
-}
 
 const createTextNoteBodySchema = z.object({
   bucketId: z.string().uuid(),
@@ -139,7 +130,7 @@ export async function registerNoteRoutes(fastify: FastifyInstance) {
 
       await uploadObject(rawKey, buffer, mp.mimetype || 'audio/webm');
 
-      const audioUrl = buildAudioFileUrl(rawKey);
+      const audioUrl = `/api/notes/audio/file/${encodeURIComponent(rawKey)}`;
 
       return reply.send({
         audioUrl,

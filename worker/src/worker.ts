@@ -59,7 +59,7 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1,
+      concurrency: config.queueConcurrency,
     }
   );
 

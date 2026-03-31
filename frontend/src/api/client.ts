@@ -2,23 +2,6 @@ const BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? '/api';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 
-/** Resolve stored audio URLs for `<audio src>` when API is on another origin (e.g. api.gilloai.com). */
-export function resolveMediaUrl(pathOrUrl: string | undefined): string | undefined {
-  if (!pathOrUrl) return undefined;
-  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) return pathOrUrl;
-  const base = (import.meta as any).env?.VITE_API_BASE_URL ?? '/api';
-  if (pathOrUrl.startsWith('/api')) {
-    if (base.startsWith('http')) {
-      return `${base.replace(/\/$/, '')}${pathOrUrl.slice('/api'.length)}`;
-    }
-    return pathOrUrl;
-  }
-  if (base.startsWith('http')) {
-    return `${base.replace(/\/$/, '')}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`;
-  }
-  return pathOrUrl;
-}
-
 export function getToken(): string | null {
   return localStorage.getItem(AUTH_TOKEN_KEY);
 }
