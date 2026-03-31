@@ -27,7 +27,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - CORS_ORIGIN=${CORS_ORIGIN:-https://gilloai.com}
+      # Default allows both apex and www; override in Dokploy if you use a single canonical host.
+      - "CORS_ORIGIN=${CORS_ORIGIN:-https://gilloai.com,https://www.gilloai.com}"
       - POSTGRES_URL=${POSTGRES_URL}
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}

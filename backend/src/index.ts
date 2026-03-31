@@ -43,12 +43,13 @@ function warmupOllama() {
 async function main() {
   const fastify = Fastify({ logger: true, trustProxy: true });
 
+  // Bearer tokens in Authorization do not need credentials: true; that flag tightens CORS
+  // and can confuse browsers unless fetch() uses credentials: 'include' for cookies.
   await fastify.register(cors, {
     origin: config.corsOrigin,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-    // This ensures Fastify handles the OPTIONS request automatically
+    credentials: false,
     preflight: true,
     strictPreflight: false,
   });
