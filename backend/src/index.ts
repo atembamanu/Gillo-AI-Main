@@ -47,7 +47,7 @@ async function main() {
   // and can confuse browsers unless fetch() uses credentials: 'include' for cookies.
   console.log(config.corsOrigin);
   await fastify.register(cors, {
-    origin: ["https://www.gilloai.com","https://gilloai.com"],
+    origin: config.corsOrigin,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: false,
