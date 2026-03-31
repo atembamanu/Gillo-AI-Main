@@ -7,12 +7,6 @@ services:
     restart: unless-stopped
     expose:
       - "80"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gillo-web.rule=Host(`gilloai.com`)"
-      - "traefik.http.routers.gillo-web.entrypoints=websecure"
-      - "traefik.http.routers.gillo-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.gillo-web.loadbalancer.server.port=80"
     depends_on:
       - api-server
     networks:
@@ -40,12 +34,6 @@ services:
       - MINIO_BUCKET=${MINIO_BUCKET:-audio-notes}
       - MINIO_REGION=${MINIO_REGION:-us-east-1}
       - QUEUE_ATTEMPTS=${QUEUE_ATTEMPTS:-3}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gillo-api.rule=Host(`api.gilloai.com`)"
-      - "traefik.http.routers.gillo-api.entrypoints=websecure"
-      - "traefik.http.routers.gillo-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.gillo-api.loadbalancer.server.port=3000"
     depends_on:
       - postgres
       - redis
