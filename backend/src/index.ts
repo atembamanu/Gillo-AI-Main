@@ -40,7 +40,7 @@ function warmupOllama() {
 async function main() {
   const fastify = Fastify({ logger: true, trustProxy: true });
 
-  await fastify.register(cors, { origin: config.corsOrigin === '*' ? true : config.corsOrigin });
+  await fastify.register(cors, { origin: config.corsOrigin });
   await fastify.register(multipart, {
     limits: {
       fileSize: 50 * 1024 * 1024 // allow up to ~50MB audio uploads

@@ -6,6 +6,21 @@ function getEnv(name: string): string {
   return value;
 }
 
+/** Comma-separated origins: `https://a.com,https://www.a.com`. `*` = reflect any (dev only). */
+export function parseCorsOrigins(raw: string): string | string[] | true {
+  const t = raw.trim();
+  if (t === '*') return true;
+  const parts = t
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    throw new Error('CORS_ORIGIN must not be empty');
+  }
+  if (parts.length === 1) return parts[0];
+  return parts;
+}
+
 function assertNotDefault(name: string, value: string, blockedValues: string[]) {
   if (process.env.NODE_ENV !== 'production') return;
   if (blockedValues.includes(value)) {
@@ -31,7 +46,7 @@ export const config = {
   postgresUrl: getEnv('POSTGRES_URL'),
   redisUrl: getEnv('REDIS_URL'),
   jwtSecret,
-  corsOrigin: getEnv('CORS_ORIGIN'),
+  corsOrigin: parseCorsOrigins(getEnv('CORS_ORIGIN')),
   ollamaUrl: getEnv('OLLAMA_URL'),
   ollamaModel: getEnv('OLLAMA_MODEL'),
   whisperUrl: getEnv('WHISPER_URL'),
