@@ -14,6 +14,32 @@ export function clearToken(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+/**
+ * Converts API-returned media paths to playable URLs across deployments:
+ * - same-origin reverse proxy (`/api`)
+ * - dedicated API domain (`https://api.example.com`)
+ */
+export function resolveApiAssetUrl(value: string): string {
+  if (!value) return value;
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+
+  // Relative API base means same-origin routing handles `/api/...`.
+  if (!BASE.startsWith('http://') && !BASE.startsWith('https://')) {
+    return value;
+  }
+
+  const baseUrl = new URL(BASE);
+  const basePath = baseUrl.pathname.replace(/\/+$/, '');
+  let path = value.startsWith('/') ? value : `/${value}`;
+
+  // If API is on a dedicated domain without `/api` prefix, fix old stored `/api/...` paths.
+  if (!basePath && path.startsWith('/api/')) {
+    path = path.slice(4);
+  }
+
+  return `${baseUrl.origin}${path}`;
+}
+
 function shouldClearToken(status: number, body: any): boolean {
   if (status !== 401) return false;
   const code = String(body?.code ?? '');

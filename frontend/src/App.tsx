@@ -6,7 +6,7 @@ import * as bucketsApi from './api/buckets';
 import * as notesApi from './api/notes';
 import type { Bucket, BucketField } from './api/buckets';
 import type { Note } from './api/notes';
-import { ApiError } from './api/client';
+import { ApiError, resolveApiAssetUrl } from './api/client';
 import { AppHeader } from './components/layout/AppHeader';
 import { BottomNav, type NavTab } from './components/layout/BottomNav';
 import { ConnectionsTab } from './components/tabs/ConnectionsTab';
@@ -125,9 +125,10 @@ export function App() {
         if (!recordedAudioFile) return;
         const { audioUrl, rawKey } =
           await notesApi.uploadAudio(newInsightBucketId, recordedAudioFile);
+        const normalizedAudioUrl = resolveApiAssetUrl(audioUrl);
         const { note } = await notesApi.createAudioNote(
           newInsightBucketId,
-          audioUrl,
+          normalizedAudioUrl,
           undefined,
           undefined,
           undefined,

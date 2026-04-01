@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import type { Note } from '../../api/notes';
 import type { Bucket } from '../../api/buckets';
+import { resolveApiAssetUrl } from '../../api/client';
 
 interface HomeTabProps {
     loading: boolean;
@@ -235,7 +236,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                           <audio
                             controls
                             className="mt-1 w-full rounded-lg bg-white"
-                            src={note.audioUrl}
+                            src={resolveApiAssetUrl(note.audioUrl)}
                           >
                             Your browser does not support the audio element.
                           </audio>
